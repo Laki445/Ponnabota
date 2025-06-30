@@ -1,45 +1,51 @@
-const express = require('express');
-const fetch = require('node-fetch');
+const express = require("express");
+const path = require("path");
+const fs = require("fs");
+const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } = require("@whiskeysockets/baileys");
+
 const app = express();
 const PORT = process.env.PORT || 10000;
-
+app.use(express.static(path.join(__dirname, "public")));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-app.get('/', (req, res) => {
-  res.send(`
-    <h2>✅ FreeBot V11 Working!</h2>
-    <p>Enter your number below to get a Pair Code.</p>
-    <form method="POST" action="/pair">
-      <input type="text" name="number" placeholder="+9477XXXXXXX" required />
-      <button type="submit">Get Code</button>
-    </form>
-  `);
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "pair.html"));
 });
 
-app.post('/pair', async (req, res) => {
+app.post("/pair", async (req, res) => {
   const number = req.body.number;
-  if (!number) return res.send("❌ Number is required!");
+  if (!number) return res.send({ error: "Number required" });
 
   try {
-    const response = await fetch(`http://localhost:${PORT}/code?number=${number}`);
-    const data = await response.json();
+    const { state, saveCreds } = await useMultiFileAuthState(`sessions/${number}`);
+    const { version } = await fetchLatestBaileysVersion();
 
-    if (data.code) {
-      res.send(`
-        <h2>✅ Copy & Paste this on WhatsApp > Link Device</h2>
-        <pre>${data.code}</pre>
-        <button onclick="navigator.clipboard.writeText('${data.code}')">Copy</button>
-      `);
-    } else {
-      res.send("❌ Pair code not received.");
-    }
-  } catch (err) {
-    console.error("Error fetching pair code:", err);
-    res.send("❌ Failed to generate code.");
+    const sock = makeWASocket({
+      version,
+      printQRInTerminal: false,
+      auth: state,
+      browser: ['FreeBot', 'Render', '1.0'],
+    });
+
+    let pairCode;
+    sock.ev.on("connection.update", (update) => {
+      if (update.pairingCode) {
+        pairCode = update.pairingCode;
+        return res.send({ code: `wa://pair/${pairCode}` });
+      } else if (update.connection === "open") {
+        console.log("✅ Connected");
+      }
+    });
+
+    setTimeout(() => {
+      if (!pairCode) return res.send({ error: "Failed to generate code." });
+    }, 15000);
+
+  } catch (e) {
+    console.error("Pair error:", e);
+    return res.send({ error: "Internal error while pairing." });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ Server started on port ${PORT}`);
-});
+app.listen(PORT, () => console.log("✅ Server started on", PORT));
