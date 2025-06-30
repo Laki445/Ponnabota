@@ -1,87 +1,41 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>FreeBot V11 - Pair</title>
+  <title>WhatsApp Pairing</title>
   <style>
-    body {
-      font-family: sans-serif;
-      background: #111;
-      color: #eee;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 40px;
-    }
-    input {
-      padding: 10px;
-      font-size: 16px;
-      width: 250px;
-      margin-bottom: 10px;
-      border-radius: 6px;
-      border: none;
-      outline: none;
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 16px;
-      background: #4CAF50;
-      border: none;
-      border-radius: 6px;
-      color: white;
-      cursor: pointer;
-    }
-    #code {
-      margin-top: 20px;
-      background: #222;
-      padding: 15px;
-      border-radius: 8px;
-      font-size: 16px;
-      word-break: break-all;
-    }
+    body { font-family: sans-serif; background: #111; color: white; text-align: center; margin-top: 50px; }
+    input, button { padding: 10px; font-size: 16px; margin-top: 10px; }
+    #result { margin-top: 20px; }
+    pre { background: #222; padding: 10px; }
   </style>
 </head>
 <body>
   <h2>🔗 Get Your WhatsApp Pairing Code</h2>
-  <form id="pairForm">
-    <input type="text" id="number" placeholder="+9477XXXXXXX" required />
-    <br/>
-    <button type="submit">Generate Code</button>
-  </form>
-
-  <div id="code" style="display: none;">
-    <p><strong>Copy this Pair Code and Paste into WhatsApp ➜ Link Device:</strong></p>
-    <pre id="pairingCode"></pre>
-    <button onclick="copyCode()">📋 Copy Code</button>
-  </div>
+  <input type="text" id="number" placeholder="9477XXXXXXX" />
+  <br />
+  <button onclick="generateCode()">Generate Code</button>
+  <div id="result"></div>
 
   <script>
-    const form = document.getElementById('pairForm');
-    const codeDiv = document.getElementById('code');
-    const codePre = document.getElementById('pairingCode');
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const number = document.getElementById('number').value.trim();
-
-      const res = await fetch(`/code?number=${encodeURIComponent(number)}`);
+    async function generateCode() {
+      const number = document.getElementById("number").value;
+      const res = await fetch("/pair", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number })
+      });
       const data = await res.json();
-
+      const result = document.getElementById("result");
       if (data.code) {
-        codeDiv.style.display = 'block';
-        codePre.textContent = data.code;
+        result.innerHTML = \`
+          <p>✅ Copy this Pair Code and Paste into WhatsApp ➜ Link Device:</p>
+          <pre>\${data.code}</pre>
+          <button onclick="navigator.clipboard.writeText('\${data.code}')">📋 Copy Code</button>
+        \`;
       } else {
-        codeDiv.style.display = 'block';
-        codePre.textContent = "❌ Failed to generate code. Try again.";
+        result.innerHTML = "<p style='color:red;'>❌ " + (data.error || "Error") + "</p>";
       }
-    });
-
-    function copyCode() {
-      navigator.clipboard.writeText(codePre.textContent)
-        .then(() => alert("✅ Code copied to clipboard!"))
-        .catch(() => alert("❌ Failed to copy code."));
     }
   </script>
 </body>
-  </html>
+</html>
